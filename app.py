@@ -6,10 +6,10 @@ import requests
 from bs4 import BeautifulSoup
 from io import BytesIO
 
-# Configuración de página
+# Configuración de la aplicación
 st.set_page_config(page_title="IVANDAY Judicial Cloud", layout="wide")
 
-# Estilo visual
+# Estilo para que se vea como tu imagen (Juzgado | Exp Amarillo | Acuerdo)
 st.markdown("""
     <style>
     .report-card { display: flex; border: 1px solid #999; margin-bottom: 2px; background: white; }
@@ -32,17 +32,16 @@ def norm_exp(e):
 
 def procesar_judicial(u_drive, u_bol):
     try:
-        # 1. Leer Drive
+        # 1. Leer Drive (Pestaña exacta y Rango solicitado)
         d_url = re.sub(r'/edit.*', '/export?format=xlsx', u_drive)
         r = requests.get(d_url)
-        # Importante: Asegúrate que la pestaña se llame así o cambia el nombre aquí:
         df = pd.read_excel(BytesIO(r.content), sheet_name="Ivan de abril 2026")
         
-        # Filtrado de filas 100-106 (índices 99-106) y columnas C-F
+        # Rango filas 100-106 (índice 99 en Python) y Columnas C-F
         base = df.iloc[99:106, [2, 3, 4, 5]]
         base.columns = ['ID', 'EXP', 'TIPO', 'NOMBRE']
 
-        # 2. Leer Boletín
+        # 2. Leer Boletín HTML
         h = {'User-Agent': 'Mozilla/5.0'}
         rb = requests.get(u_bol, headers=h, verify=False)
         rb.encoding = rb.apparent_encoding
@@ -53,7 +52,8 @@ def procesar_judicial(u_drive, u_bol):
         juzgado = "JUZGADO"
 
         for i, linea in enumerate(lineas):
-            if any(x in linea.upper() for x in ["JUZGADO", "SALA", "FAMILIAR"]): juzgado = linea.strip()
+            if any(x in linea.upper() for x in ["JUZGADO", "SALA", "FAMILIAR"]): 
+                juzgado = linea.strip()
             
             for _, row in base.iterrows():
                 target = norm_exp(row['EXP'])
@@ -64,19 +64,19 @@ def procesar_judicial(u_drive, u_bol):
                         res.append({"J": juzgado, "E": target, "T": linea.strip()})
         return res
     except Exception as e:
-        st.error(f"Error detectado: {e}")
+        st.error(f"Error de conexión o datos: {e}")
         return []
 
 st.title("⚖️ MONITOR IVANDAY CLOUD")
 
-# Inputs
-drive_link = st.text_input("Enlace de Google Sheets:", "https://docs.google.com/spreadsheets/d/1ssS6Zod7sUZnJBxTyBjzD5G9Arv4UNpn/edit")
-bol_link = st.text_input("Enlace del Boletín PJBC:", "https://www.pjbc.gob.mx/boletinj/2026/my_html/ti260430.htm")
+# Links predeterminados
+drive_link = st.text_input("Link Excel:", "https://docs.google.com/spreadsheets/d/1ssS6Zod7sUZnJBxTyBjzD5G9Arv4UNpn/edit")
+bol_link = st.text_input("Link Boletín:", "https://www.pjbc.gob.mx/boletinj/2026/my_html/ti260430.htm")
 
-if st.button("🚀 BUSCAR ACUERDOS"):
+if st.button("🚀 BUSCAR EN EL BOLETÍN"):
     data = procesar_judicial(drive_link, bol_link)
     if data:
-        st.success(f"Encontrados {len(data)} acuerdos.")
+        st.success(f"¡Hecho! Encontrados {len(data)} acuerdos para el rango 100-106.")
         for r in data:
             st.markdown(f"""
                 <div class="report-card">
@@ -86,4 +86,4 @@ if st.button("🚀 BUSCAR ACUERDOS"):
                 </div>
             """, unsafe_allow_html=True)
     else:
-        st.warning("No se encontraron coincidencias para los expedientes del rango 100-106.")
+        st.warning("No se encontraron coincidencias para los expedientes del rango solicitado.")
